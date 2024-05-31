@@ -1,42 +1,92 @@
-
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+interface IERC20 {
+    function totalSupply() external view returns (uint);
+    function balanceOf(address account) external view returns (uint);
+    function transfer(address recipient, uint amount) external returns (bool);
+    
+    event Transfer(address indexed from, address indexed to, uint amount);
+}
 
-contract MyToken is ERC20, ERC20Permit {
-    constructor() ERC20("Degen", "DGN") ERC20Permit("DGN")
-{}
-    event RedeemToken(address account, uint rewardCategory);
-    event BurnToken(address account, uint amount);
-    event TransferToken(address from, address to, uint amount);
+contract ERC20 is IERC20 {
+    address public immutable owner;
+    uint public totalSupply;
+    mapping (address => uint) public balanceOf;
 
-    // onlyOwner modifier allows only the user to execute the function
-    function mint(address to, uint256 amount) public
-     {
-            _mint(to, amount);
+    struct Item {
+        uint itemId;
+        string itemName;
+        uint itemPrice;
     }
     
-    // In-built transfer function is used
-    // transfer(to, amount);
+    mapping(uint => Item) public items;
+    uint public itemCount;
 
-    //Wrapper function for balanceOf function of ERC20
-    function getBalance() public view returns (uint){
-        return balanceOf(msg.sender);
+    constructor() {
+        owner = msg.sender;
+        totalSupply = 0;
     }
 
-    function redeem(uint rewardCategory) public {
-        uint requiredAmount = rewardCategory * 10;
-        require(balanceOf(msg.sender)>=requiredAmount,"Insufficient Amount");
-        burn(requiredAmount);
-        emit RedeemToken(msg.sender, rewardCategory);
+    modifier onlyOwner {
+        require(msg.sender == owner, "Only owner can access this function");
+        _;
     }
 
-    // Wrapper function to access the private _burn function of ERC20
-    function burn(uint amount) public {
-        _burn(msg.sender, amount);
-        emit BurnToken(msg.sender, amount);
+    string public constant name = "Degen";
+    string public constant symbol = "DGN";
+    uint8 public constant decimals = 0;
+
+    function transfer(address recipient, uint amount) external returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "Insufficient Amount");
+
+        balanceOf[msg.sender] -= amount;
+        balanceOf[recipient] += amount;
+
+        emit Transfer(msg.sender, recipient, amount);
+        return true;
+    }
+
+    function mint(address receiver,uint amount) external onlyOwner {
+        balanceOf[receiver] += amount;
+        totalSupply += amount;
+        emit Transfer(address(0), receiver, amount);
+    }
+
+    function burn(uint amount) external {
+        require(amount > 0, "Amount should not be zero");
+        require(balanceOf[msg.sender] >= amount, "Insufficient Amount");
+        balanceOf[msg.sender] -= amount;
+        totalSupply -= amount;
+
+        emit Transfer(msg.sender, address(0), amount);
+    }
+    
+    function addItem(string memory itemName, uint256 itemPrice) external onlyOwner {
+        itemCount++;
+        Item memory newItem = Item(itemCount, itemName, itemPrice);
+        items[itemCount] = newItem;
+    }
+
+    function getItems() external view returns (Item[] memory) {
+        Item[] memory allItems = new Item[](itemCount);
+        
+        for (uint i = 1; i <= itemCount; i++) {
+            allItems[i - 1] = items[i];
+        }
+        
+        return allItems;
+    }
+    
+    function redeem(uint itemId) external {
+        require(itemId > 0 && itemId <= itemCount, "Invalid item ID");
+        Item memory redeemedItem = items[itemId];
+        
+        require(balanceOf[msg.sender] >= redeemedItem.itemPrice, "Insufficient Amount to redeem");
+        
+        balanceOf[msg.sender] -= redeemedItem.itemPrice;
+        balanceOf[owner] += redeemedItem.itemPrice;
+        emit Transfer(msg.sender, address(0), redeemedItem.itemPrice);
+        
     }
 }
