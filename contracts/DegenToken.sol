@@ -23,6 +23,12 @@ contract ERC20 is IERC20 {
     mapping(uint => Item) public items;
     uint public itemCount;
 
+    // Mapping to track redeemed items for each user
+    mapping(address => mapping(uint => bool)) public redeemedItems;
+
+    // Event to log item redemption
+    event ItemRedeemed(address indexed user, uint indexed itemId, string itemName, uint itemPrice);
+
     constructor() {
         owner = msg.sender;
         totalSupply = 0;
@@ -83,10 +89,14 @@ contract ERC20 is IERC20 {
         Item memory redeemedItem = items[itemId];
         
         require(balanceOf[msg.sender] >= redeemedItem.itemPrice, "Insufficient Amount to redeem");
-        
+        require(!redeemedItems[msg.sender][itemId], "Item already redeemed");
+
         balanceOf[msg.sender] -= redeemedItem.itemPrice;
         balanceOf[owner] += redeemedItem.itemPrice;
-        emit Transfer(msg.sender, address(0), redeemedItem.itemPrice);
-        
+
+        redeemedItems[msg.sender][itemId] = true;
+
+        emit Transfer(msg.sender, owner, redeemedItem.itemPrice);
+        emit ItemRedeemed(msg.sender, itemId, redeemedItem.itemName, redeemedItem.itemPrice);
     }
 }
